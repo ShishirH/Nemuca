@@ -12,6 +12,7 @@ public class Game {
     private int round1Score;
     private int round2Score;
     private int round3Score;
+    private int status;
 
     public Game(String gameId,List<PlayerDetails> playerList){
         this.gameId = gameId;
@@ -19,6 +20,7 @@ public class Game {
         this.round1Score = 0;
         this.round2Score = 0;
         this.round3Score = 0;
+        this.status = 0;
     }
 
     public String getGameId() {
@@ -60,4 +62,8 @@ public class Game {
     public void setRound3Score(int round3Score) {
         this.round3Score = round3Score;
     }
+
+    public void setStatus(int status) { this.status = status;}
+
+    public int getStatus() {return status;}
 }

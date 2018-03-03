@@ -6,9 +6,12 @@ import java.util.Iterator;
 import java.util.List;
 
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.support.annotation.NonNull;
+import android.support.v7.app.AlertDialog;
 import android.text.InputType;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -17,6 +20,7 @@ import android.view.ViewGroup;
 import android.widget.BaseExpandableListAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.support.v7.app.AppCompatActivity;
@@ -48,6 +52,10 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
     // child data in format of header title, child title
     private ArrayList<ViewGroup> parentList = new ArrayList<ViewGroup>();
     private HashMap<String, Game> _listDataChild;
+    private final int minDelta = 300;           // threshold in ms
+    private long focusTime = 0;                 // time of last touch
+    private View focusTarget = null;
+
 
     public ExpandableListAdapter(Context context, List<String> listDataHeader,
                                  HashMap<String,Game> listChildData) {
@@ -80,18 +88,24 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
             convertView = infalInflater.inflate(R.layout.list_item, null);
         }
 
+        final View csView = convertView;
         final TextView txtListChild = (TextView) convertView
                 .findViewById(R.id.lblListItem);
+        if(childItem.getStatus() == 1)
+        {
+            csView.setBackgroundColor(Color.parseColor("#9E9E9E"));
+            String Name = childItem.getPlayerList().get(0).getPlayerName().substring(1);
+            txtListChild.setText(childItem.getPlayerList().get(0).getPlayerName());
+
+        }
+
 
 //        String gameName = childItem.getGameId()+"\t"+childItem.getPlayerList().get(0).getPlayerName();
-        String x = "";
-        for(int i=0;i<childItem.getPlayerList().size();i++)
-        {
-            x+=childItem.getPlayerList().get(i).getPlayerName();
+        else {
+            csView.setBackgroundColor(Color.WHITE);
+            txtListChild.setText(childItem.getPlayerList().get(0).getPlayerName());
         }
-        txtListChild.setText(x);
         Button addPlayer = (Button) convertView.findViewById(R.id.AddPlayer);
-
 
         addPlayer.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -101,15 +115,43 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
 //                result = result + "\n" + newPlayer.getText().toString();
 //
 //                txtListChild.setText(result);
-                Intent i = new Intent(_context, EnterNameActivity.class);
-                Activity origin = (Activity) _context;
-                origin.startActivityForResult(new Intent(_context, EnterNameActivity.class), 1);
+                 Intent i = new Intent(_context, QRCodeScanActivity.class);
+                 Activity origin = (Activity) _context;
+                 i.putExtra("requestCode",1);
+                 i.putExtra("groupPosition",groupPosition);
+                 i.putExtra("childPosition",childPosition);
+                 origin.startActivityForResult(i, 1);
+
+
+                final LinearLayout mainLL = (LinearLayout) csView.findViewById(R.id.mainlinear);
+                for(int k=1;k< ((Game)getChild(groupPosition,0)).getPlayerList().size();k++)
+                {
+                    final LinearLayout ll = new LinearLayout(_context);
+                    ll.setOrientation(LinearLayout.HORIZONTAL);
+                    LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                    LinearLayout.LayoutParams but = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT);
+                    Button remove = new Button(_context);
+                    remove.setText("x");
+                    remove.setLayoutParams(params);
+
+                    TextView newPlayer = new TextView(_context);
+                    newPlayer.setText(((Game)getChild(groupPosition,0)).getPlayerList().get(k).getPlayerName());
+                    but.weight = 1.0f;
+                    newPlayer.setLayoutParams(but);
+                    ll.addView(newPlayer);
+                    ll.addView(remove);
+                    mainLL.addView(ll);
+                    remove.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View view) {
+                            mainLL.removeView(ll);
+                        }
+                    });
+                }
 
                 if(result != null) {
 
-                    childItem.getPlayerList().add(new PlayerDetails("45465",result));
-
-
+                   // childItem.getPlayerList().add(new PlayerDetails("45465",result));
 
                 }
 
@@ -119,40 +161,140 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
         Button update = (Button) convertView.findViewById(R.id.update);
         final View cView = convertView;
 
+        final EditText R1 = (EditText) cView.findViewById(R.id.roundone);
+        final EditText R2 = (EditText) cView.findViewById(R.id.roundtwo);
+        final EditText R3 = (EditText) cView.findViewById(R.id.roundthree);
+        if(childItem.getRound1Score()!=0)
+            R1.setText(String.valueOf(childItem.getRound1Score()));
+        else
+            R1.setText("");
+        if(childItem.getRound2Score()!=0)
+            R2.setText(String.valueOf(childItem.getRound2Score()));
+        else
+            R2.setText("");
+
+        if(childItem.getRound3Score()!=0)
+            R3.setText(String.valueOf(childItem.getRound3Score()));
+        else
+            R3.setText("");
+
+        if(childItem.getRound1Score()!=0) {
+            R1.setEnabled(false);
+        }
+        else
+            R1.setEnabled(true);
+        if(childItem.getRound2Score()!=0){
+            R2.setEnabled(false);
+        }
+        else
+            R2.setEnabled(true);
+        if(childItem.getRound3Score()!=0){
+            R3.setEnabled(false);
+        }
+        else
+            R3.setEnabled(true);
+        R1.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View view, boolean hasFocus) {
+                long t = System.currentTimeMillis();
+                long delta = t - focusTime;
+                if (hasFocus) {     // gained focus
+                    if (delta > minDelta) {
+                        focusTime = t;
+                        focusTarget = view;
+
+                    }
+                }
+                else {              // lost focus
+                    if (delta <= minDelta  &&  view == focusTarget) {
+                        focusTarget.post(new Runnable() {   // reset focus to target
+                            public void run() {
+                                focusTarget.requestFocus();
+                            }
+                        });
+                    }
+                }
+            }
+        });
+        R2.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View view, boolean hasFocus) {
+                long t = System.currentTimeMillis();
+                long delta = t - focusTime;
+                if (hasFocus) {     // gained focus
+                    if (delta > minDelta) {
+                        focusTime = t;
+                        focusTarget = view;
+                    }
+                }
+                else {              // lost focus
+                    if (delta <= minDelta  &&  view == focusTarget) {
+                        focusTarget.post(new Runnable() {   // reset focus to target
+                            public void run() {
+                                focusTarget.requestFocus();
+                            }
+                        });
+                    }
+                }
+            }
+
+        });
+        R3.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View view, boolean hasFocus) {
+                long t = System.currentTimeMillis();
+                long delta = t - focusTime;
+                if (hasFocus) {     // gained focus
+                    if (delta > minDelta) {
+                        focusTime = t;
+                        focusTarget = view;
+                    }
+                }
+                else {              // lost focus
+                    if (delta <= minDelta  &&  view == focusTarget) {
+                        focusTarget.post(new Runnable() {   // reset focus to target
+                            public void run() {
+                                focusTarget.requestFocus();
+                            }
+                        });
+                    }
+                }
+            }
+        });
+
         update.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                EditText R1 = (EditText) cView.findViewById(R.id.roundone);
-                EditText R2 = (EditText) cView.findViewById(R.id.roundtwo);
-                EditText R3 = (EditText) cView.findViewById(R.id.roundthree);
+
 
 //                R2.setInputType(InputType.TYPE_CLASS_NUMBER);
 //                R3.setInputType(InputType.TYPE_CLASS_NUMBER);
-                String scoreOne = R1.getText().toString();
-                String scoreTwo = R2.getText().toString();
-                String scoreThree = R3.getText().toString();
 
-                if(R1.isEnabled() && scoreOne.compareTo("") != 0) {
-                    if(scoreOne.compareTo("0") != 0) {
-                        childItem.setRound1Score(Integer.parseInt(scoreOne));
-                        R1.setEnabled(false);
-                    }
+                int score1=0,score2=0,score3=0;
+                if(R1.getText().toString().compareTo("")!=0)
+                    score1 = Integer.parseInt(R1.getText().toString());
+
+                if(R2.getText().toString().compareTo("")!=0)
+                    score2 =Integer.parseInt(R2.getText().toString());
+                if(R3.getText().toString().compareTo("")!=0)
+                    score3 = Integer.parseInt(R3.getText().toString());
+
+                if(R1.isEnabled() && score1 != 0) {
+                    childItem.setRound1Score(score1);
+                    R1.setEnabled(false);
+
                 }
 
-                else if(R2.isEnabled() && scoreTwo.compareTo("") != 0)
+                if(R2.isEnabled() && score2!= 0)
                 {
-                    if(scoreTwo.compareTo("0") != 0) {
-                        childItem.setRound2Score(Integer.parseInt(scoreTwo));
-                        R2.setEnabled(false);
-                    }
+                    childItem.setRound2Score(score2);
+                    R2.setEnabled(false);
                 }
 
-                else if(R3.isEnabled() && scoreThree.compareTo("") != 0)
+                if(R3.isEnabled() && score3!= 0)
                 {
-                    if(scoreThree.compareTo("0") != 0) {
-                        childItem.setRound3Score(Integer.parseInt(scoreThree));
-                        R3.setEnabled(false);
-                    }
+                    childItem.setRound3Score(score3);
+                    R3.setEnabled(false);
                 }
 
             }
@@ -163,12 +305,63 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
         submit.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                View a = null;
-                View group = getGroupView(gPosition, true, a, parentList.get(gPosition));
-                TextView header = (TextView) group.findViewById(R.id.lblListHeader);
-                header.setText("Hello");
+                AlertDialog.Builder builder = new AlertDialog.Builder(_context);
+                builder.setMessage("Are you sure you want to Submit?");
+                builder.setCancelable(false);
+                builder.setPositiveButton("Yes",
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int id) {
+                               // String name = _listDataHeader.get(gPosition);
+                                //_listDataHeader.set(gPosition,"Submitted");
+                                childItem.setStatus(1);
+                                Toast.makeText(_context, "Submitted!!", Toast.LENGTH_SHORT).show();
+                                notifyDataSetChanged();
+                            }
+                        });
+                builder.setNegativeButton("No",
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int id) {
+                                dialog.cancel();
+                            }
+                        });
+                AlertDialog alertDialog = builder.create();
+                alertDialog.show();
+
+
+
             }
         });
+
+        if(childItem.getStatus() == 1)
+        {
+            addPlayer.setEnabled(false);
+            submit.setEnabled(false);
+            update.setEnabled(false);
+            R1.setEnabled(false);
+            R2.setEnabled(false);
+            R3.setEnabled(false);
+        }
+
+        else
+        {
+            addPlayer.setEnabled(true);
+            submit.setEnabled(true);
+            update.setEnabled(true);
+            if(childItem.getRound1Score() != 0)
+                R1.setEnabled(false);
+            else
+                R1.setEnabled(true);
+            if(childItem.getRound2Score() != 0)
+                R2.setEnabled(false);
+            else
+                R2.setEnabled(true);
+            if(childItem.getRound3Score() != 0)
+                R3.setEnabled(false);
+            else
+                R3.setEnabled(true);
+
+        }
+
         return convertView;
     }
 
@@ -195,6 +388,8 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
     @Override
     public View getGroupView(int groupPosition, boolean isExpanded,
                              View convertView, ViewGroup parent) {
+
+
         Game childItem = (Game) getChild(groupPosition,0);
         int a =0;
 
@@ -202,15 +397,31 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
             LayoutInflater infalInflater = (LayoutInflater) this._context
                     .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
             convertView = infalInflater.inflate(R.layout.list_group, null);
+        }
+
+        LinearLayout grouplinearlayout = (LinearLayout) convertView.findViewById(R.id.grouplinearlayout);
+        if(childItem!=null) {
+            if(childItem.getStatus() == 1)
+            {
+                grouplinearlayout.setBackgroundColor(Color.parseColor("#00C853"));
+            }
+
+            else
+                grouplinearlayout.setBackgroundColor(Color.parseColor("#4ba3c7"));
+            String headerTitle = childItem.getGameId() + "\t" + childItem.getPlayerList().get(0).getPlayerName();
+            TextView lblListHeader = (TextView) convertView
+                    .findViewById(R.id.lblListHeader);
+            lblListHeader.setTypeface(null, Typeface.BOLD);
+            lblListHeader.setText(headerTitle);
+
+            if(childItem.getStatus() == 1)
+            {
+                _listDataHeader.add(0, headerTitle);
+                _listDataHeader.remove(groupPosition);
+                notifyDataSetChanged();
+            }
 
         }
-        String headerTitle = childItem.getGameId()+"\t"+childItem.getPlayerList().get(0).getPlayerName();
-        TextView lblListHeader = (TextView) convertView
-                .findViewById(R.id.lblListHeader);
-        lblListHeader.setTypeface(null, Typeface.BOLD);
-        lblListHeader.setText(headerTitle);
-
-        parentList.add(groupPosition, parent);
         return convertView;
     }
 
@@ -230,16 +441,17 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
 
         if (requestCode == 1) {
             if(resultCode == Activity.RESULT_OK){
-                 result=data.getStringExtra("result");
-                 Log.e(TAG,"result : "+result);
-                View convertView = null;
-                if (convertView == null) {
-                    LayoutInflater infalInflater = (LayoutInflater) this._context
-                            .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-                    convertView = infalInflater.inflate(R.layout.list_item, null);
-                }
+                result=data.getStringExtra("result");
 
-
+                Log.e(TAG,"result : "+result);
+                Toast.makeText(_context,result,Toast.LENGTH_SHORT).show();
+                int gp = data.getIntExtra("groupPosition",0);
+                String groupName = (String) getGroup(gp);
+                List<PlayerDetails> playerList=((Game)getChild(gp,0)).getPlayerList();
+                playerList.add(new PlayerDetails("98999898",result));
+                //_listDataChild.get(groupName).getPlayerList().add(new PlayerDetails("6784848",result));
+                _listDataChild.get(groupName).setPlayerList(playerList);
+                notifyDataSetChanged();
             }
             if (resultCode == Activity.RESULT_CANCELED) {
                 //Write your code if there's no result
